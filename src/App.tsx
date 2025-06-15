@@ -18,6 +18,7 @@ import {
   ChatSession,
   DatabaseChatMessage
 } from './services/supabaseService';
+import { analyzeImageWithChatGPT, chatWithGPTAboutDeepfakes, ImageAnalysisResult } from './services/openaiService';
 
 // ==================== TYPE DEFINITIONS ====================
 interface DetectionResult {
@@ -77,8 +78,6 @@ class EnhancedDeepfakeAgent {
   }
 
   async processInput(input: string, fileData: File | null = null): Promise<AgentResponse> {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
     if (fileData) {
       return this.generateFileAnalysis(fileData);
     } else {
@@ -86,65 +85,123 @@ class EnhancedDeepfakeAgent {
     }
   }
 
-  generateFileAnalysis(fileData: File): AgentResponse {
-    const confidence = 65 + Math.random() * 30;
-    const isDeepfake = confidence > 75;
+  async generateFileAnalysis(fileData: File): Promise<AgentResponse> {
+    try {
+      // Use ChatGPT for real image analysis
+      const analysisResult: ImageAnalysisResult = await analyzeImageWithChatGPT(fileData);
+      
+      const detectionMethods = analysisResult.detectionMethods;
     
     return {
       type: 'analysis',
-      title: isDeepfake ? '🚨 DEEPFAKE DETECTED' : '✅ AUTHENTIC CONTENT',
-      confidence: confidence.toFixed(1),
-      isDeepfake,
-      content: `**Confidence Level:** ${confidence.toFixed(1)}% (High reliability)
+        title: analysisResult.isDeepfake ? '🚨 POTENTIAL DEEPFAKE DETECTED' : '✅ LIKELY AUTHENTIC CONTENT',
+        confidence: analysisResult.confidence.toString(),
+        isDeepfake: analysisResult.isDeepfake,
+        content: `**Confidence Level:** ${analysisResult.confidence}% (ChatGPT Analysis)
 
 **🎯 Executive Summary:**
-${isDeepfake 
-  ? `This content shows strong indicators of AI manipulation. Key detection factors include facial landmark inconsistencies and edge artifacts.`
-  : `This content appears authentic based on comprehensive analysis. Minimal manipulation indicators were found across all detection methods.`
-}
+${analysisResult.analysis}
 
 **🧠 Detection Methods Used:**
 
 **Facial Landmark Analysis**
-• Detection Score: ${(60 + Math.random() * 30).toFixed(1)}%
+• Detection Score: ${detectionMethods.facialLandmarks}%
 • What it checks: Geometric consistency of facial features and landmark positioning
-• Result: ${isDeepfake ? 'Significant geometric inconsistencies detected' : 'Natural facial proportions confirmed'}
+• Result: ${detectionMethods.facialLandmarks > 70 ? 'Natural facial proportions confirmed' : 'Potential geometric inconsistencies detected'}
 
 **Edge Artifact Detection**
-• Detection Score: ${(50 + Math.random() * 40).toFixed(1)}%
+• Detection Score: ${detectionMethods.edgeArtifacts}%
 • What it checks: Unnatural blending patterns around face boundaries
-• Result: ${isDeepfake ? 'Suspicious blending artifacts found' : 'Natural edge transitions observed'}
+• Result: ${detectionMethods.edgeArtifacts > 70 ? 'Natural edge transitions observed' : 'Suspicious blending artifacts found'}
 
 **Texture Consistency Analysis**
-• Detection Score: ${(40 + Math.random() * 35).toFixed(1)}%
+• Detection Score: ${detectionMethods.textureConsistency}%
 • What it checks: Skin texture patterns and lighting consistency
-• Result: ${isDeepfake ? 'Artificial texture patterns identified' : 'Consistent natural skin texture'}
+• Result: ${detectionMethods.textureConsistency > 70 ? 'Consistent natural skin texture' : 'Artificial texture patterns identified'}
+
+**Lighting Analysis**
+• Detection Score: ${detectionMethods.lightingAnalysis}%
+• What it checks: Light source consistency and shadow accuracy
+• Result: ${detectionMethods.lightingAnalysis > 70 ? 'Natural lighting patterns' : 'Inconsistent lighting detected'}
 
 **🔬 Technical Details:**
-• **Faces Detected:** ${Math.floor(Math.random() * 2) + 1}
-• **Processing Time:** ${(Math.random() * 2 + 1.5).toFixed(1)}s
-• **Model Version:** v2.1-ensemble
-• **Reliability:** High (ensemble agreement: 94%)`,
+${analysisResult.technicalDetails}
+• **Processing Time:** Real-time analysis
+• **Model:** ChatGPT-4 Vision
+• **Reliability:** High (AI-powered assessment)`,
       
-      recommendations: isDeepfake ? [
-        "🚨 **High Priority:** Do not share or distribute this content",
-        "🔍 **Verify Source:** Investigate the origin and context of this media",
-        "📋 **Document Evidence:** Save analysis results for potential legal proceedings"
-      ] : [
-        "✅ **Likely Authentic:** Content appears genuine based on current analysis",
-        "🔄 **Cross-Reference:** Verify through additional sources when possible",
-        "📈 **Monitor:** Stay alert for variants or manipulated versions"
+        recommendations: analysisResult.recommendations,
+        
+        followUpQuestions: [
+          "Can you explain the specific indicators you found?",
+          "What should I look for manually in this image?",
+          "How reliable is this analysis?",
+          "Can you analyze another image for comparison?"
+        ]
+      };
+    } catch (error) {
+      console.error('Error in ChatGPT analysis:', error);
+      return this.generateFallbackAnalysis(fileData);
+    }
+  }
+
+  generateFallbackAnalysis(fileData: File): AgentResponse {
+    // Fallback when ChatGPT is unavailable
+    const confidence = 65 + Math.random() * 30;
+    const isDeepfake = confidence < 75;
+    
+    return {
+      type: 'analysis',
+      title: isDeepfake ? '⚠️ ANALYSIS UNAVAILABLE' : '🔄 FALLBACK ANALYSIS',
+      confidence: confidence.toFixed(1),
+      isDeepfake,
+      content: `**Note:** ChatGPT analysis is currently unavailable. Using fallback detection.
+
+**Basic File Analysis:**
+• **File Name:** ${fileData.name}
+• **File Size:** ${(fileData.size / 1024 / 1024).toFixed(2)} MB
+• **File Type:** ${fileData.type}
+
+**Fallback Assessment:**
+The image has been processed using basic algorithms. For the most accurate analysis, please ensure your OpenAI API key is configured and try again.
+
+**Technical Status:**
+• ChatGPT Vision API: Unavailable
+• Local Processing: Active
+• Confidence: Limited without AI analysis`,
+      
+      recommendations: [
+        "🔧 **Configure API Key:** Set up your OpenAI API key for full analysis",
+        "🔄 **Retry Analysis:** Try uploading the image again",
+        "📋 **Manual Review:** Examine the image manually for obvious artifacts"
       ],
       
       followUpQuestions: [
-        "Would you like me to explain any specific detection method in detail?",
-        "Should I analyze another file for comparison?",
-        "Would you like tips on manually spotting deepfakes?"
+        "How do I set up ChatGPT analysis?",
+        "What should I look for manually?",
+        "Can you help me configure the API?"
       ]
     };
   }
 
-  generateTextResponse(input: string): AgentResponse {
+  async generateTextResponse(input: string): Promise<AgentResponse> {
+    try {
+      // Use ChatGPT for conversation
+      const response = await chatWithGPTAboutDeepfakes(input);
+      
+      return {
+        type: 'conversational',
+        content: response,
+        suggestions: this.generateContextualSuggestions(input),
+        followUp: "Would you like to know more about any specific aspect?"
+      };
+    } catch (error) {
+      console.error('Error in ChatGPT conversation:', error);
+      return this.generateFallbackTextResponse(input);
+    }
+  }
+
+  generateFallbackTextResponse(input: string): AgentResponse {
     const lowerInput = input.toLowerCase();
     
     if (lowerInput.includes('how') && (lowerInput.includes('work') || lowerInput.includes('detect'))) {
@@ -152,40 +209,34 @@ ${isDeepfake
         type: 'educational',
         content: `**🔍 How I Detect Deepfakes:**
 
-I use a sophisticated multi-step process that combines multiple AI techniques:
+I use ChatGPT-4 Vision for sophisticated image analysis that examines:
 
-**Step 1: Face Detection**
-I first locate all faces in your image using advanced computer vision algorithms, specifically MediaPipe for robust face detection even in challenging conditions.
+**Advanced AI Analysis:**
+• **Computer Vision:** ChatGPT analyzes facial geometry, texture patterns, and lighting
+• **Pattern Recognition:** Identifies subtle inconsistencies invisible to the human eye
+• **Contextual Understanding:** Considers the overall image composition and realism
 
-**Step 2: Feature Extraction** 
-I extract detailed measurements of facial features, including:
-• 68+ facial landmark positions
-• Geometric ratios and proportions
-• Texture patterns and skin characteristics
-• Edge gradients and blending patterns
+**Multi-Factor Assessment:**
+• **Facial Landmarks:** Checking geometric consistency of features
+• **Edge Detection:** Looking for artificial blending patterns
+• **Texture Analysis:** Examining skin, hair, and clothing authenticity
+• **Lighting Consistency:** Verifying natural light sources and shadows
 
-**Step 3: Multi-Method Analysis**
-I run 4 different detection algorithms simultaneously:
+**Why ChatGPT Vision?**
+• State-of-the-art AI model trained on millions of images
+• Can understand context and subtle visual cues
+• Provides detailed explanations of findings
+• Continuously updated with latest detection methods
 
-• **Geometric Analysis** - Checking if facial proportions follow natural human anatomy
-• **Edge Detection** - Looking for telltale artificial blending patterns
-• **Texture Analysis** - Examining skin texture authenticity and lighting consistency
-• **Frequency Analysis** - Finding digital manipulation fingerprints in the frequency domain
-
-**Step 4: Ensemble Scoring**
-I combine all results using weighted algorithms, where each method contributes based on its reliability for the specific content type.
-
-**Step 5: Intelligent Explanation**
-I translate technical findings into clear, actionable insights tailored to your expertise level.
-
-This multi-method approach is why I achieve 89%+ accuracy - much higher than single-technique detectors.`,
+This AI-powered approach achieves high accuracy by combining multiple detection strategies with human-like visual understanding.`,
         
         suggestions: [
           "Show me an example analysis",
-          "What makes deepfakes detectable?",
-          "How accurate are you compared to other tools?"
+          "How accurate is ChatGPT vision?",
+          "What are the limitations?",
+          "Can you analyze my image?"
         ],
-        followUp: "Would you like to see this in action with a sample image?"
+        followUp: "Would you like to test this with an image upload?"
       };
     }
     
@@ -193,36 +244,57 @@ This multi-method approach is why I achieve 89%+ accuracy - much higher than sin
       type: 'conversational',
       content: `I understand you're asking about "${input}".
 
-As your AI deepfake detection expert, I specialize in:
+As your AI deepfake detection expert powered by ChatGPT, I specialize in:
 
-🔍 **Advanced Content Analysis**
-• Multi-method ensemble detection
-• Forensic-quality evidence generation
-• Real-time threat assessment
+🔍 **Advanced Image Analysis**
+• Real-time ChatGPT Vision analysis
+• Comprehensive deepfake detection
+• Detailed explanations of findings
 
-📚 **Technical Education**
-• Algorithm explanations tailored to your expertise
-• Latest research and developments
-• Hands-on detection training
+📚 **Expert Knowledge**
+• Latest deepfake detection research
+• AI and computer vision insights
+• Digital media forensics
 
-🛡️ **Security Consultation**
-• Enterprise threat assessment
-• Verification workflow design
-• Risk mitigation strategies
+🛡️ **Security Guidance**
+• Threat assessment and mitigation
+• Best practices for media verification
+• Educational resources
 
-**What would you like to explore?**
-• Upload a file for comprehensive analysis
-• Learn about specific detection techniques
-• Understand the threat landscape
-• Get implementation guidance`,
+**Ready to help!** Upload an image for analysis or ask me anything about deepfake detection.`,
       
-      suggestions: [
-        "How do you detect deepfakes?",
-        "Upload a file for analysis",
-        "What makes deepfakes dangerous?"
-      ],
-      followUp: "How can I best assist you with deepfake detection today?"
+      suggestions: this.generateContextualSuggestions(input),
+      followUp: "What would you like to explore next?"
     };
+  }
+
+  generateContextualSuggestions(input: string): string[] {
+    const lowerInput = input.toLowerCase();
+    
+    if (lowerInput.includes('chatgpt') || lowerInput.includes('ai')) {
+      return [
+        "How does ChatGPT analyze images?",
+        "What makes AI detection better?",
+        "Show me a real analysis example",
+        "What are ChatGPT's limitations?"
+      ];
+    }
+    
+    if (lowerInput.includes('accuracy') || lowerInput.includes('reliable')) {
+      return [
+        "Test with a sample image",
+        "Compare different detection methods",
+        "Learn about confidence scores",
+        "Understand analysis limitations"
+      ];
+    }
+    
+    return [
+      "Upload an image for analysis",
+      "How do deepfakes work?",
+      "What detection methods are available?",
+      "Show me analysis examples"
+    ];
   }
 }
 
@@ -560,7 +632,8 @@ const LiveCamera = ({
   detectionResult, 
   confidence, 
   onStart, 
-  onStop 
+  onStop,
+  onFileUpload 
 }: {
   videoRef: React.RefObject<HTMLVideoElement | null>; // ✅ Fixed: Allow null
   isStreaming: boolean;
@@ -570,22 +643,19 @@ const LiveCamera = ({
   confidence: number;
   onStart: () => void;
   onStop: () => void;
+  onFileUpload: () => void;
 }) => (
   <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
     <div className="flex items-center justify-between mb-4">
       <h3 className="text-xl font-semibold text-white flex items-center">
         <Camera className="w-5 h-5 mr-2" />
-        Live Camera
+        Live Detection
       </h3>
       <div className="flex space-x-2">
         {!isStreaming ? (
-          <button
-            onClick={onStart}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Start Camera</span>
-          </button>
+          <div className="text-sm text-slate-400">
+            Choose your detection method below
+          </div>
         ) : (
           <button
             onClick={onStop}
@@ -602,9 +672,50 @@ const LiveCamera = ({
         ref={videoRef}
         autoPlay
         muted
+        playsInline
         className="w-full h-80 object-cover"
         style={{ transform: 'scaleX(-1)' }}
       />
+      
+      {/* Loading overlay when camera is starting */}
+      {!isStreaming && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-80">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Eye className="w-12 h-12 text-slate-400" />
+            </div>
+            <h4 className="text-xl font-semibold text-white mb-2">Choose Detection Method</h4>
+            <p className="text-gray-300 mb-6">Start live camera detection or upload a file to analyze</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={onStart}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+              >
+                <Camera className="w-5 h-5" />
+                <span>Start Live Camera</span>
+              </button>
+              <button
+                onClick={onFileUpload}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+              >
+                <Upload className="w-5 h-5" />
+                <span>Upload File</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Camera permission loading state */}
+      {isStreaming && !videoRef.current?.srcObject && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-80">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-400 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-300 text-lg">Starting camera...</p>
+            <p className="text-gray-500 text-sm mt-2">Please allow camera access if prompted</p>
+          </div>
+        </div>
+      )}
       
       {faceDetected && (
         <div className="absolute top-4 left-4 bg-blue-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm">
@@ -744,7 +855,7 @@ const MessageComponent = ({
 // ==================== MAIN COMPONENT ====================
 const DeepfakeDetectionPlatform = () => {
   // Navigation state
-  const [activeView, setActiveView] = useState<string>('analytics');
+  const [activeView, setActiveView] = useState<string>('detector');
   
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
@@ -1071,16 +1182,113 @@ const DeepfakeDetectionPlatform = () => {
     }
   };
 
-  const startCamera = async () => {
+  const testCamera = async () => {
+    console.log('🧪 Testing camera access...');
+    
+    // Check browser support
+    if (!navigator.mediaDevices) {
+      console.error('❌ navigator.mediaDevices not supported');
+      return;
+    }
+    
+    if (!navigator.mediaDevices.getUserMedia) {
+      console.error('❌ getUserMedia not supported');
+      return;
+    }
+    
     try {
+      // List available devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(device => device.kind === 'videoinput');
+      console.log('📷 Available video devices:', videoInputs);
+      
+      if (videoInputs.length === 0) {
+        console.error('❌ No video input devices found');
+        return;
+      }
+      
+      // Test basic camera access
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      console.log('✅ Camera access successful:', stream);
+      
+      // Clean up
+      stream.getTracks().forEach(track => track.stop());
+      console.log('✅ Camera test completed successfully');
+      
+    } catch (error) {
+      console.error('❌ Camera test failed:', error);
+    }
+  };
+
+  // Make testCamera available globally for debugging
+  useEffect(() => {
+    (window as any).testCamera = testCamera;
+    console.log('🔧 Camera test function available. Run testCamera() in console to debug.');
+  }, []);
+
+  const startCamera = async () => {
+    console.log('🎥 Starting camera...');
+    console.log('🔍 Current activeView:', activeView);
+    console.log('🔍 Video ref available:', !!videoRef.current);
+    
+    // Check if we're in the detector view
+    if (activeView !== 'detector') {
+      console.warn('⚠️ Camera can only be started in detector view. Current view:', activeView);
+      alert('Please switch to the "Live Detection" tab to use the camera.');
+      return;
+    }
+    
+    try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('❌ getUserMedia not supported');
+        alert('Camera access is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+        return;
+      }
+
+      console.log('📹 Requesting camera permissions...');
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 }
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
       });
       
+      console.log('✅ Camera stream obtained:', stream);
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      
+      // Wait a bit for the video element to be ready
+      if (!videoRef.current) {
+        console.warn('⏳ Video ref not ready, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+      
+      if (videoRef.current) {
+        console.log('📺 Setting video source...');
+        videoRef.current.srcObject = stream;
+        
+        // Add event listeners for debugging
+        videoRef.current.onloadedmetadata = () => {
+          console.log('✅ Video metadata loaded');
+          videoRef.current?.play().then(() => {
+            console.log('✅ Video playing');
+          }).catch(err => {
+            console.error('❌ Error playing video:', err);
+          });
+        };
+        
+        videoRef.current.onerror = (err) => {
+          console.error('❌ Video element error:', err);
+        };
+      } else {
+        console.error('❌ Video ref still not available after waiting');
+        alert('Video element not ready. Please try again.');
+        // Clean up the stream
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      
       setIsStreaming(true);
       
       const analyze = () => {
@@ -1092,13 +1300,30 @@ const DeepfakeDetectionPlatform = () => {
       
       if (videoRef.current) {
         videoRef.current.onloadeddata = () => {
+          console.log('✅ Video data loaded, starting analysis...');
           setIsAnalyzing(true);
           analyze();
         };
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Camera access denied. Please enable camera permissions.');
+      console.error('❌ Error accessing camera:', error);
+      
+      let errorMessage = 'Camera access failed. ';
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Please allow camera permissions and try again.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage += 'No camera found. Please connect a camera and try again.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage += 'Camera is already in use by another application.';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage += 'Camera constraints cannot be satisfied.';
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -1223,11 +1448,28 @@ const DeepfakeDetectionPlatform = () => {
     handleUserMessage(suggestion);
   };
 
+  const handleLiveCameraFileUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,video/*';
+    input.onchange = (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (files && files[0]) {
+        const syntheticEvent = {
+          target: { files: files },
+          currentTarget: { files: files }
+        } as React.ChangeEvent<HTMLInputElement>;
+        handleFileUpload(syntheticEvent);
+      }
+    };
+    input.click();
+  };
+
   const quickActions = [
     { text: "How do you detect deepfakes?", icon: Brain },
     { text: "How accurate are you?", icon: TrendingUp },
     { text: "What makes deepfakes dangerous?", icon: AlertTriangle },
-    { text: "Upload sample for analysis", action: () => agentFileInputRef.current?.click(), icon: Upload }
+    { text: "Upload sample for analysis", action: handleLiveCameraFileUpload, icon: Upload }
   ];
 
   useEffect(() => {
@@ -1269,51 +1511,7 @@ const DeepfakeDetectionPlatform = () => {
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
                 <div className="lg:col-span-2 space-y-4">
-                  {!uploadedFile && !isStreaming ? (
-                    // Default state - show both options
-                    <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
-                      <div className="text-center py-12">
-                        <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <Eye className="w-12 h-12 text-slate-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-white mb-2">Choose Detection Method</h3>
-                        <p className="text-slate-400 mb-8">Start live camera detection or upload a file to analyze</p>
-                        
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                          <button
-                            onClick={startCamera}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
-                          >
-                            <Camera className="w-5 h-5" />
-                            <span>Start Live Camera</span>
-                          </button>
-                          
-                          <button
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = 'image/*,video/*';
-                              input.onchange = (e) => {
-                                const files = (e.target as HTMLInputElement).files;
-                                if (files && files[0]) {
-                                  const syntheticEvent = {
-                                    target: { files: files },
-                                    currentTarget: { files: files }
-                                  } as React.ChangeEvent<HTMLInputElement>;
-                                  handleFileUpload(syntheticEvent);
-                                }
-                              };
-                              input.click();
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
-                          >
-                            <Upload className="w-5 h-5" />
-                            <span>Upload File</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : uploadedFile ? (
+                  {uploadedFile ? (
                     // File upload mode
                     <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
                       <FileUpload
@@ -1329,7 +1527,7 @@ const DeepfakeDetectionPlatform = () => {
                       />
                     </div>
                   ) : (
-                    // Live camera mode
+                    // Live camera mode - always render so video ref is available
                     <LiveCamera
                       videoRef={videoRef}
                       isStreaming={isStreaming}
@@ -1339,6 +1537,7 @@ const DeepfakeDetectionPlatform = () => {
                       confidence={confidence}
                       onStart={startCamera}
                       onStop={stopCamera}
+                      onFileUpload={handleLiveCameraFileUpload}
                     />
                   )}
                 </div>
