@@ -1,0 +1,11 @@
+Deepfake Detection Results
+==================================================
+
+File: elon_fake.jpg
+Prediction: Real
+Confidence: 1.000
+------------------------------
+File: elon_real.jpg
+Prediction: Real
+Confidence: 1.000
+------------------------------
