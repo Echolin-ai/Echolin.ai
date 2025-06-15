@@ -59,7 +59,7 @@ class DeepfakeAgent {
   }
 
   async generateAnalysisResponse(results, fileData, userContext) {
-    const { confidence, isDeepfake, artifacts, reliability } = results;
+    const { confidence, isDeepfake } = results;
     
     try {
       const analysisContent = await this.llmService.generateAnalysisExplanation(
@@ -185,6 +185,13 @@ class DeepfakeAgent {
         case 'help_capabilities':
           prompt = `User wants to know about enhanced deepfake detection capabilities. They asked: "${userInput}". 
           Explain the advanced features, use cases, and value proposition clearly.`;
+          llmIntent = 'conversational';
+          break;
+          
+        default:
+          // For general queries and unrecognized intents
+          prompt = `User asked: "${userInput}". Technical level: ${this.userProfile.technicalLevel}. 
+          Provide a helpful response about deepfake detection and security.`;
           llmIntent = 'conversational';
           break;
       }
