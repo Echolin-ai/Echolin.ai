@@ -5,7 +5,7 @@ import {
   Menu, Home, Settings, BarChart3, Users, Monitor
 } from 'lucide-react';
 
-// Type definitions
+// ==================== TYPE DEFINITIONS ====================
 interface DetectionResult {
   isDeepfake: boolean;
   confidence: number;
@@ -52,7 +52,7 @@ interface AgentResponse {
   followUp?: string;
 }
 
-// Enhanced AI Agent for deepfake detection
+// ==================== AI AGENT CLASS ====================
 class EnhancedDeepfakeAgent {
   conversationHistory: any[];
   userProfile: { technicalLevel: string };
@@ -212,9 +212,486 @@ As your AI deepfake detection expert, I specialize in:
   }
 }
 
+// ==================== UTILITY FUNCTIONS ====================
+const formatFileSize = (bytes: number) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const getStatusColor = (detectionResult: DetectionResult | null) => {
+  if (!detectionResult) return 'text-gray-400';
+  if (detectionResult.isDeepfake) {
+    return detectionResult.severity === 'high' ? 'text-red-500' : 'text-orange-500';
+  }
+  return 'text-green-500';
+};
+
+const getStatusIcon = (detectionResult: DetectionResult | null) => {
+  if (!detectionResult) return <Eye className="w-6 h-6" />;
+  if (detectionResult.isDeepfake) {
+    return <AlertTriangle className="w-6 h-6" />;
+  }
+  return <CheckCircle className="w-6 h-6" />;
+};
+
+const getStatusText = (detectionResult: DetectionResult | null) => {
+  if (!detectionResult) return 'Analyzing...';
+  if (detectionResult.isDeepfake) {
+    return `Potential Deepfake Detected (${detectionResult.severity} risk)`;
+  }
+  return 'Authentic Content';
+};
+
+// ==================== COMPONENT: SIDEBAR ====================
+const Sidebar = ({ activeView, setActiveView }: { activeView: string; setActiveView: (view: string) => void }) => {
+  const menuItems = [
+    { id: 'detector', label: 'Live Detection', icon: Camera },
+    { id: 'agent', label: 'AI Assistant', icon: Bot },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  ];
+
+  return (
+    <div className="w-80 bg-slate-800/60 backdrop-blur border-r border-slate-700 flex flex-col">
+      <div className="p-6">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+            <Shield className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">DeepShield AI</h1>
+            <p className="text-sm text-slate-400">Detection Platform</p>
+          </div>
+        </div>
+        
+        <nav className="space-y-3">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveView(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
+                activeView === item.id 
+                  ? 'bg-purple-600 text-white' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+      
+      <div className="mt-auto p-6">
+        <div className="bg-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-300 font-medium">System Status</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          </div>
+          <div className="text-sm text-slate-400 space-y-1">
+            <div>Accuracy: 89.3%</div>
+            <div>Model: v2.1-ensemble</div>
+            <div>Uptime: 99.9%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== COMPONENT: DETECTION STATUS ====================
+const DetectionStatus = ({ detectionResult, confidence }: { detectionResult: DetectionResult | null; confidence: number }) => (
+  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
+    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <Zap className="w-5 h-5 mr-2" />
+      Detection Status
+    </h3>
+    
+    {detectionResult ? (
+      <div className="space-y-3">
+        <div className={`p-3 rounded-lg ${detectionResult.isDeepfake ? 'bg-red-900 bg-opacity-50' : 'bg-green-900 bg-opacity-50'}`}>
+          <div className={`flex items-center space-x-2 ${getStatusColor(detectionResult)}`}>
+            {getStatusIcon(detectionResult)}
+            <span className="font-medium">
+              {detectionResult.isDeepfake ? 'Deepfake Risk' : 'Authentic'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-300 mt-1">
+            Confidence: {Math.round(confidence)}%
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Source: {detectionResult.fileType}
+          </p>
+          <p className="text-xs text-gray-400">
+            Last updated: {detectionResult.timestamp}
+          </p>
+        </div>
+      </div>
+    ) : (
+      <div className="text-gray-400 text-center py-8">
+        Start camera or upload file to begin detection
+      </div>
+    )}
+  </div>
+);
+
+// ==================== COMPONENT: ANALYSIS METRICS ====================
+const AnalysisMetrics = ({ analysisMetrics }: { analysisMetrics: AnalysisMetrics }) => (
+  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
+    <h3 className="text-lg font-semibold text-white mb-4">Analysis Metrics</h3>
+    
+    <div className="space-y-4">
+      {Object.entries(analysisMetrics).map(([key, value]) => (
+        <div key={key} className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-300 capitalize">
+              {key.replace(/([A-Z])/g, ' $1').trim()}
+            </span>
+            <span className="text-white">{Math.round(value)}%</span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${
+                value > 70 ? 'bg-green-500' : value > 40 ? 'bg-yellow-500' : 'bg-red-500'
+              }`}
+              style={{ width: `${value}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// ==================== COMPONENT: FILE UPLOAD ====================
+const FileUpload = ({ 
+  uploadedFile, 
+  uploadProgress, 
+  onFileUpload, 
+  onClear,
+  videoRef,
+  imageRef,
+  faceDetected,
+  detectionResult,
+  confidence 
+}: {
+  uploadedFile: File | null;
+  uploadProgress: number;
+  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  imageRef: React.RefObject<HTMLImageElement>;
+  faceDetected: boolean;
+  detectionResult: DetectionResult | null;
+  confidence: number;
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="space-y-4">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={onFileUpload}
+        className="hidden"
+      />
+      
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-semibold text-white flex items-center">
+          <Camera className="w-5 h-5 mr-2" />
+          File Analysis
+        </h3>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload</span>
+          </button>
+          {uploadedFile && (
+            <button
+              onClick={onClear}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            >
+              <X className="w-4 h-4" />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {uploadedFile && (
+        <>
+          <div className="bg-gray-700 rounded-lg p-4">
+            <div className="flex items-center space-x-3">
+              {uploadedFile.type.startsWith('video/') ? (
+                <Video className="w-8 h-8 text-blue-400" />
+              ) : (
+                <Image className="w-8 h-8 text-green-400" />
+              )}
+              <div className="flex-1">
+                <p className="text-white font-medium">{uploadedFile.name}</p>
+                <p className="text-gray-400 text-sm">{formatFileSize(uploadedFile.size)}</p>
+              </div>
+            </div>
+            
+            {uploadProgress < 100 && (
+              <div className="mt-3">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-400">Processing...</span>
+                  <span className="text-white">{Math.round(uploadProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-600 rounded-full h-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="relative bg-black rounded-lg overflow-hidden">
+            {uploadedFile.type.startsWith('video/') ? (
+              <video
+                ref={videoRef}
+                controls
+                className="w-full h-80 object-cover"
+              />
+            ) : (
+              <img
+                ref={imageRef}
+                className="w-full h-80 object-cover"
+                alt="Uploaded content"
+              />
+            )}
+            
+            {faceDetected && uploadProgress === 100 && (
+              <div className="absolute top-4 left-4 bg-blue-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm">
+                Face Detected
+              </div>
+            )}
+            
+            {uploadProgress === 100 && (
+              <div className="absolute bottom-4 left-4 right-4">
+                <div className="bg-black bg-opacity-70 rounded-lg p-3">
+                  <div className={`flex items-center space-x-2 ${getStatusColor(detectionResult)}`}>
+                    {getStatusIcon(detectionResult)}
+                    <span className="font-medium">{getStatusText(detectionResult)}</span>
+                    {detectionResult && (
+                      <span className="text-sm">
+                        ({Math.round(confidence)}% confidence)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ==================== COMPONENT: LIVE CAMERA ====================
+const LiveCamera = ({ 
+  videoRef, 
+  isStreaming, 
+  faceDetected, 
+  isAnalyzing, 
+  detectionResult, 
+  confidence, 
+  onStart, 
+  onStop 
+}: {
+  videoRef: React.RefObject<HTMLVideoElement>;
+  isStreaming: boolean;
+  faceDetected: boolean;
+  isAnalyzing: boolean;
+  detectionResult: DetectionResult | null;
+  confidence: number;
+  onStart: () => void;
+  onStop: () => void;
+}) => (
+  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-xl font-semibold text-white flex items-center">
+        <Camera className="w-5 h-5 mr-2" />
+        Live Camera
+      </h3>
+      <div className="flex space-x-2">
+        {!isStreaming ? (
+          <button
+            onClick={onStart}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <Camera className="w-4 h-4" />
+            <span>Start Camera</span>
+          </button>
+        ) : (
+          <button
+            onClick={onStop}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Stop
+          </button>
+        )}
+      </div>
+    </div>
+    
+    <div className="relative bg-black rounded-lg overflow-hidden">
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        className="w-full h-80 object-cover"
+        style={{ transform: 'scaleX(-1)' }}
+      />
+      
+      {faceDetected && (
+        <div className="absolute top-4 left-4 bg-blue-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm">
+          Face Detected
+        </div>
+      )}
+      
+      {isAnalyzing && (
+        <div className="absolute bottom-4 left-4 right-4">
+          <div className="bg-black bg-opacity-70 rounded-lg p-3">
+            <div className={`flex items-center space-x-2 ${getStatusColor(detectionResult)}`}>
+              {getStatusIcon(detectionResult)}
+              <span className="font-medium">{getStatusText(detectionResult)}</span>
+              {detectionResult && (
+                <span className="text-sm">
+                  ({Math.round(confidence)}% confidence)
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+// ==================== COMPONENT: MESSAGE ====================
+const MessageComponent = ({ 
+  message, 
+  onSuggestionClick 
+}: { 
+  message: Message; 
+  onSuggestionClick: (suggestion: string) => void; 
+}) => (
+  <div className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+    {message.type === 'agent' && (
+      <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+        <Bot className="h-5 w-5 text-white" />
+      </div>
+    )}
+    
+    <div className={`max-w-4xl rounded-2xl p-4 ${
+      message.type === 'user' 
+        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white ml-12' 
+        : 'bg-slate-800/70 text-white backdrop-blur border border-slate-700/50'
+    }`}>
+      <div className="prose prose-invert max-w-none">
+        <div 
+          dangerouslySetInnerHTML={{ 
+            __html: message.content
+              .replace(/\n/g, '<br/>')
+              .replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-300">$1</strong>')
+              .replace(/^### (.*)/gm, '<h3 class="text-lg font-bold mb-2 text-blue-400">$1</h3>')
+              .replace(/^#### (.*)/gm, '<h4 class="font-semibold mb-1 text-slate-200">$1</h4>')
+              .replace(/^• (.*)/gm, '<div class="ml-4 mb-1 flex items-start gap-2"><span class="text-blue-400 mt-1">•</span><span>$1</span></div>')
+              .replace(/^🔍 (.*)/gm, '<div class="bg-blue-900/30 border border-blue-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-blue-400"><span>🔍</span><span>$1</span></div></div>')
+              .replace(/^❌ (.*)/gm, '<div class="bg-red-900/30 border border-red-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-red-400"><span>❌</span><span>$1</span></div></div>')
+              .replace(/^✅ (.*)/gm, '<div class="bg-green-900/30 border border-green-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-green-400"><span>✅</span><span>$1</span></div></div>')
+          }} 
+        />
+      </div>
+      
+      {/* Analysis Results Card */}
+      {message.metadata && message.metadata.type === 'analysis' && (
+        <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-600">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="h-5 w-5 text-purple-400" />
+            <span className="text-sm font-medium text-purple-400">Analysis Summary</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-slate-400">Status:</span>
+              <span className={`ml-2 font-medium ${message.metadata.isDeepfake ? 'text-red-400' : 'text-green-400'}`}>
+                {message.metadata.isDeepfake ? 'Deepfake Detected' : 'Authentic Content'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400">Confidence:</span>
+              <span className="ml-2 font-medium text-white">{message.metadata.confidence}%</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Methods Used:</span>
+              <span className="ml-2 text-slate-300">4 Detection Algorithms</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Reliability:</span>
+              <span className="ml-2 text-blue-400">High</span>
+            </div>
+          </div>
+          
+          {/* Confidence Bar */}
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-slate-400 mb-1">
+              <span>Detection Confidence</span>
+              <span>{message.metadata.confidence}%</span>
+            </div>
+            <div className="w-full bg-slate-700 rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-1000 ${
+                  message.metadata.isDeepfake ? 'bg-red-500' : 'bg-green-500'
+                }`}
+                style={{ width: `${message.metadata.confidence}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Follow-up Questions */}
+      {message.metadata && message.metadata.followUpQuestions && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {message.metadata.followUpQuestions.slice(0, 3).map((question: string, index: number) => (
+            <button
+              key={index}
+              onClick={() => onSuggestionClick(question)}
+              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-full text-xs text-slate-300 transition-colors"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+      )}
+      
+      <div className="text-xs text-slate-400 mt-3">
+        {message.timestamp.toLocaleTimeString()}
+      </div>
+    </div>
+    
+    {message.type === 'user' && (
+      <div className="flex-shrink-0 w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+        <span className="text-sm font-medium text-white">U</span>
+      </div>
+    )}
+  </div>
+);
+
+// ==================== MAIN COMPONENT ====================
 const DeepfakeDetectionPlatform = () => {
   // Navigation state
-  const [activeView, setActiveView] = useState<string>('analytics'); // Default to analytics to match screenshot
+  const [activeView, setActiveView] = useState<string>('analytics');
   
   // Detection state
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -254,11 +731,10 @@ const DeepfakeDetectionPlatform = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const agentFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Detection functions
+  // Detection logic hooks
   const analyzeFrame = async (mediaElement: HTMLVideoElement | HTMLImageElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -303,9 +779,6 @@ const DeepfakeDetectionPlatform = () => {
 
   const uploadFileToBackend = async (file: File) => {
     setUploadProgress(0);
-    const formData = new FormData();
-    formData.append('file', file);
-
     const uploadInterval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 90) {
@@ -320,13 +793,7 @@ const DeepfakeDetectionPlatform = () => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       clearInterval(uploadInterval);
       setUploadProgress(100);
-      
-      return {
-        success: true,
-        fileType: file.type.startsWith('video/') ? 'video' : 'image',
-        fileName: file.name,
-        size: file.size
-      };
+      return { success: true };
     } catch (error) {
       clearInterval(uploadInterval);
       throw error;
@@ -379,7 +846,6 @@ const DeepfakeDetectionPlatform = () => {
           };
         }
       }
-      
     } catch (error) {
       console.error('Upload failed:', error);
       alert('Upload failed. Please try again.');
@@ -412,7 +878,6 @@ const DeepfakeDetectionPlatform = () => {
           analyze();
         };
       }
-      
     } catch (error) {
       console.error('Error accessing camera:', error);
       alert('Camera access denied. Please enable camera permissions.');
@@ -437,9 +902,6 @@ const DeepfakeDetectionPlatform = () => {
     setDetectionResult(null);
     setIsAnalyzing(false);
     setUploadProgress(0);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   // Agent functions
@@ -506,7 +968,6 @@ const DeepfakeDetectionPlatform = () => {
         const recContent = "**🎯 Recommendations:**\n\n" + response.recommendations.map((rec: string) => rec).join('\n');
         addMessage('agent', recContent);
       }
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       addMessage('agent', `❌ **Analysis Error:** ${errorMessage}\n\nPlease try uploading a different file or contact support if the issue persists.`);
@@ -530,7 +991,6 @@ const DeepfakeDetectionPlatform = () => {
         const suggestionsContent = "**💡 You might also ask:**\n" + response.suggestions.map((s: string) => `• ${s}`).join('\n');
         addMessage('agent', suggestionsContent);
       }
-      
     } catch (error) {
       addMessage('agent', `❌ **Error:** I encountered an issue processing your request. Please try again.`);
     } finally {
@@ -540,39 +1000,6 @@ const DeepfakeDetectionPlatform = () => {
 
   const handleSuggestionClick = (suggestion: string) => {
     handleUserMessage(suggestion);
-  };
-
-  // Utility functions
-  const getStatusColor = () => {
-    if (!detectionResult) return 'text-gray-400';
-    if (detectionResult.isDeepfake) {
-      return detectionResult.severity === 'high' ? 'text-red-500' : 'text-orange-500';
-    }
-    return 'text-green-500';
-  };
-
-  const getStatusIcon = () => {
-    if (!detectionResult) return <Eye className="w-6 h-6" />;
-    if (detectionResult.isDeepfake) {
-      return <AlertTriangle className="w-6 h-6" />;
-    }
-    return <CheckCircle className="w-6 h-6" />;
-  };
-
-  const getStatusText = () => {
-    if (!detectionResult) return 'Analyzing...';
-    if (detectionResult.isDeepfake) {
-      return `Potential Deepfake Detected (${detectionResult.severity} risk)`;
-    }
-    return 'Authentic Content';
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const quickActions = [
@@ -588,80 +1015,14 @@ const DeepfakeDetectionPlatform = () => {
     };
   }, []);
 
+  // ==================== RENDER ====================
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex">
-      {/* Sidebar Navigation */}
-      <div className="w-80 bg-slate-800/60 backdrop-blur border-r border-slate-700 flex flex-col">
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-              <Shield className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">DeepShield AI</h1>
-              <p className="text-sm text-slate-400">Detection Platform</p>
-            </div>
-          </div>
-          
-          <nav className="space-y-3">
-            <button
-              onClick={() => setActiveView('detector')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
-                activeView === 'detector' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <Camera className="h-5 w-5" />
-              <span>Live Detection</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveView('agent')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
-                activeView === 'agent' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <Bot className="h-5 w-5" />
-              <span>AI Assistant</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveView('analytics')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
-                activeView === 'analytics' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <BarChart3 className="h-5 w-5" />
-              <span>Analytics</span>
-            </button>
-          </nav>
-        </div>
-        
-        <div className="mt-auto p-6">
-          <div className="bg-slate-700/50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-slate-300 font-medium">System Status</span>
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            </div>
-            <div className="text-sm text-slate-400 space-y-1">
-              <div>Accuracy: 89.3%</div>
-              <div>Model: v2.1-ensemble</div>
-              <div>Uptime: 99.9%</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Sidebar activeView={activeView} setActiveView={setActiveView} />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {activeView === 'detector' && (
           <>
-            {/* Header */}
             <div className="bg-slate-800/60 backdrop-blur border-b border-slate-700 p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -675,233 +1036,41 @@ const DeepfakeDetectionPlatform = () => {
               </div>
             </div>
 
-            {/* Detection Interface */}
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-                {/* Video Feed */}
                 <div className="lg:col-span-2 space-y-4">
-                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-semibold text-white flex items-center">
-                        <Camera className="w-5 h-5 mr-2" />
-                        Live Analysis
-                      </h3>
-                      <div className="flex space-x-2">
-                        {!uploadedFile && (
-                          <>
-                            <button
-                              onClick={() => fileInputRef.current?.click()}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                            >
-                              <Upload className="w-4 h-4" />
-                              <span>Upload</span>
-                            </button>
-                            {!isStreaming ? (
-                              <button
-                                onClick={startCamera}
-                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                              >
-                                <Camera className="w-4 h-4" />
-                                <span>Start Camera</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={stopCamera}
-                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-                              >
-                                Stop
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {uploadedFile && (
-                          <button
-                            onClick={clearUpload}
-                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                            <span>Clear</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
+                  {!uploadedFile ? (
+                    <LiveCamera
+                      videoRef={videoRef}
+                      isStreaming={isStreaming}
+                      faceDetected={faceDetected}
+                      isAnalyzing={isAnalyzing}
+                      detectionResult={detectionResult}
+                      confidence={confidence}
+                      onStart={startCamera}
+                      onStop={stopCamera}
                     />
-                    
-                    {!uploadedFile ? (
-                      <div className="relative bg-black rounded-lg overflow-hidden">
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          muted
-                          className="w-full h-80 object-cover"
-                          style={{ transform: 'scaleX(-1)' }}
-                        />
-                        
-                        {faceDetected && (
-                          <div className="absolute top-4 left-4 bg-blue-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm">
-                            Face Detected
-                          </div>
-                        )}
-                        
-                        {isAnalyzing && !uploadedFile && (
-                          <div className="absolute bottom-4 left-4 right-4">
-                            <div className="bg-black bg-opacity-70 rounded-lg p-3">
-                              <div className={`flex items-center space-x-2 ${getStatusColor()}`}>
-                                {getStatusIcon()}
-                                <span className="font-medium">{getStatusText()}</span>
-                                {detectionResult && (
-                                  <span className="text-sm">
-                                    ({Math.round(confidence)}% confidence)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="bg-gray-700 rounded-lg p-4">
-                          <div className="flex items-center space-x-3">
-                            {uploadedFile.type.startsWith('video/') ? (
-                              <Video className="w-8 h-8 text-blue-400" />
-                            ) : (
-                              <Image className="w-8 h-8 text-green-400" />
-                            )}
-                            <div className="flex-1">
-                              <p className="text-white font-medium">{uploadedFile.name}</p>
-                              <p className="text-gray-400 text-sm">{formatFileSize(uploadedFile.size)}</p>
-                            </div>
-                          </div>
-                          
-                          {uploadProgress < 100 && (
-                            <div className="mt-3">
-                              <div className="flex justify-between text-sm mb-1">
-                                <span className="text-gray-400">Processing...</span>
-                                <span className="text-white">{Math.round(uploadProgress)}%</span>
-                              </div>
-                              <div className="w-full bg-gray-600 rounded-full h-2">
-                                <div
-                                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${uploadProgress}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="relative bg-black rounded-lg overflow-hidden">
-                          {uploadedFile.type.startsWith('video/') ? (
-                            <video
-                              ref={uploadVideoRef}
-                              controls
-                              className="w-full h-80 object-cover"
-                            />
-                          ) : (
-                            <img
-                              ref={uploadImageRef}
-                              className="w-full h-80 object-cover"
-                              alt="Uploaded content"
-                            />
-                          )}
-                          
-                          {faceDetected && uploadProgress === 100 && (
-                            <div className="absolute top-4 left-4 bg-blue-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm">
-                              Face Detected
-                            </div>
-                          )}
-                          
-                          {isAnalyzing && uploadProgress === 100 && (
-                            <div className="absolute bottom-4 left-4 right-4">
-                              <div className="bg-black bg-opacity-70 rounded-lg p-3">
-                                <div className={`flex items-center space-x-2 ${getStatusColor()}`}>
-                                  {getStatusIcon()}
-                                  <span className="font-medium">{getStatusText()}</span>
-                                  {detectionResult && (
-                                    <span className="text-sm">
-                                      ({Math.round(confidence)}% confidence)
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
+                      <FileUpload
+                        uploadedFile={uploadedFile}
+                        uploadProgress={uploadProgress}
+                        onFileUpload={handleFileUpload}
+                        onClear={clearUpload}
+                        videoRef={uploadVideoRef}
+                        imageRef={uploadImageRef}
+                        faceDetected={faceDetected}
+                        detectionResult={detectionResult}
+                        confidence={confidence}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Analysis Panel */}
                 <div className="space-y-4">
-                  {/* Detection Status */}
-                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                      <Zap className="w-5 h-5 mr-2" />
-                      Detection Status
-                    </h3>
-                    
-                    {detectionResult ? (
-                      <div className="space-y-3">
-                        <div className={`p-3 rounded-lg ${detectionResult.isDeepfake ? 'bg-red-900 bg-opacity-50' : 'bg-green-900 bg-opacity-50'}`}>
-                          <div className={`flex items-center space-x-2 ${getStatusColor()}`}>
-                            {getStatusIcon()}
-                            <span className="font-medium">
-                              {detectionResult.isDeepfake ? 'Deepfake Risk' : 'Authentic'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-300 mt-1">
-                            Confidence: {Math.round(confidence)}%
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            Source: {detectionResult.fileType}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Last updated: {detectionResult.timestamp}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-gray-400 text-center py-8">
-                        {isAnalyzing ? 'Analyzing content...' : 'Start camera or upload file to begin detection'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Analysis Metrics */}
-                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
-                    <h3 className="text-lg font-semibold text-white mb-4">Analysis Metrics</h3>
-                    
-                    <div className="space-y-4">
-                      {Object.entries(analysisMetrics).map(([key, value]) => (
-                        <div key={key} className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-300 capitalize">
-                              {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                            <span className="text-white">{Math.round(value)}%</span>
-                          </div>
-                          <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                value > 70 ? 'bg-green-500' : value > 40 ? 'bg-yellow-500' : 'bg-red-500'
-                              }`}
-                              style={{ width: `${value}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Info Panel */}
+                  <DetectionStatus detectionResult={detectionResult} confidence={confidence} />
+                  <AnalysisMetrics analysisMetrics={analysisMetrics} />
+                  
                   <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
                     <h3 className="text-lg font-semibold text-white mb-4">How It Works</h3>
                     <div className="text-sm text-gray-300 space-y-2">
@@ -919,7 +1088,6 @@ const DeepfakeDetectionPlatform = () => {
 
         {activeView === 'agent' && (
           <div className="flex flex-col h-full">
-            {/* Agent Header */}
             <div className="bg-slate-800/60 backdrop-blur border-b border-slate-700 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -950,112 +1118,15 @@ const DeepfakeDetectionPlatform = () => {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
-                <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {message.type === 'agent' && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-white" />
-                    </div>
-                  )}
-                  
-                  <div className={`max-w-4xl rounded-2xl p-4 ${
-                    message.type === 'user' 
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white ml-12' 
-                      : 'bg-slate-800/70 text-white backdrop-blur border border-slate-700/50'
-                  }`}>
-                    <div className="prose prose-invert max-w-none">
-                      <div 
-                        dangerouslySetInnerHTML={{ 
-                          __html: message.content
-                            .replace(/\n/g, '<br/>')
-                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-300">$1</strong>')
-                            .replace(/^### (.*)/gm, '<h3 class="text-lg font-bold mb-2 text-blue-400">$1</h3>')
-                            .replace(/^#### (.*)/gm, '<h4 class="font-semibold mb-1 text-slate-200">$1</h4>')
-                            .replace(/^• (.*)/gm, '<div class="ml-4 mb-1 flex items-start gap-2"><span class="text-blue-400 mt-1">•</span><span>$1</span></div>')
-  .replace(/^🔍 (.*)/gm, '<div class="bg-blue-900/30 border border-blue-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-blue-400"><span>🔍</span><span>$1</span></div></div>')
-                            .replace(/^❌ (.*)/gm, '<div class="bg-red-900/30 border border-red-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-red-400"><span>❌</span><span>$1</span></div></div>')
-                            .replace(/^✅ (.*)/gm, '<div class="bg-green-900/30 border border-green-500/30 rounded-lg p-3 my-2"><div class="flex items-center gap-2 text-green-400"><span>✅</span><span>$1</span></div></div>')
-                        }} 
-                      />
-                    </div>
-                    
-                    {/* Analysis Results Card */}
-                    {message.metadata && message.metadata.type === 'analysis' && (
-                      <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-600">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Brain className="h-5 w-5 text-purple-400" />
-                          <span className="text-sm font-medium text-purple-400">Analysis Summary</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-slate-400">Status:</span>
-                            <span className={`ml-2 font-medium ${message.metadata.isDeepfake ? 'text-red-400' : 'text-green-400'}`}>
-                              {message.metadata.isDeepfake ? 'Deepfake Detected' : 'Authentic Content'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Confidence:</span>
-                            <span className="ml-2 font-medium text-white">{message.metadata.confidence}%</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Methods Used:</span>
-                            <span className="ml-2 text-slate-300">4 Detection Algorithms</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Reliability:</span>
-                            <span className="ml-2 text-blue-400">High</span>
-                          </div>
-                        </div>
-                        
-                        {/* Confidence Bar */}
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs text-slate-400 mb-1">
-                            <span>Detection Confidence</span>
-                            <span>{message.metadata.confidence}%</span>
-                          </div>
-                          <div className="w-full bg-slate-700 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all duration-1000 ${
-                                message.metadata.isDeepfake ? 'bg-red-500' : 'bg-green-500'
-                              }`}
-                              style={{ width: `${message.metadata.confidence}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Follow-up Questions */}
-                    {message.metadata && message.metadata.followUpQuestions && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {message.metadata.followUpQuestions.slice(0, 3).map((question: string, index: number) => (
-                          <button
-                            key={index}
-                            onClick={() => handleSuggestionClick(question)}
-                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-full text-xs text-slate-300 transition-colors"
-                          >
-                            {question}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <div className="text-xs text-slate-400 mt-3">
-                      {message.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                  
-                  {message.type === 'user' && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-white">U</span>
-                    </div>
-                  )}
-                </div>
+                <MessageComponent
+                  key={message.id}
+                  message={message}
+                  onSuggestionClick={handleSuggestionClick}
+                />
               ))}
               
-              {/* Processing Indicator */}
               {isProcessing && (
                 <div className="flex gap-3 justify-start">
                   <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
@@ -1087,7 +1158,6 @@ const DeepfakeDetectionPlatform = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Actions - Only show when no active conversation */}
             {messages.length <= 1 && !isProcessing && (
               <div className="px-4 pb-4">
                 <div className="text-sm text-slate-400 mb-3">Quick Actions:</div>
@@ -1106,7 +1176,6 @@ const DeepfakeDetectionPlatform = () => {
               </div>
             )}
 
-            {/* Input Area */}
             <div className="border-t border-slate-700 bg-slate-800/50 backdrop-blur p-4">
               <div className="flex gap-3 items-end">
                 <input
@@ -1155,7 +1224,6 @@ const DeepfakeDetectionPlatform = () => {
                 </button>
               </div>
               
-              {/* Status Bar */}
               <div className="flex items-center justify-between mt-3 text-xs text-slate-400">
                 <div className="flex items-center gap-4">
                   <span>🛡️ Enterprise-grade security</span>
@@ -1177,7 +1245,6 @@ const DeepfakeDetectionPlatform = () => {
               <h2 className="text-3xl font-bold text-white mb-8">Analytics Dashboard</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-                {/* Detection Accuracy Card */}
                 <div className="bg-slate-800/70 backdrop-blur rounded-2xl p-8 border border-slate-700/50">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-white">Detection Accuracy</h3>
@@ -1187,7 +1254,6 @@ const DeepfakeDetectionPlatform = () => {
                   <p className="text-slate-400">FaceForensics++ benchmark</p>
                 </div>
                 
-                {/* Files Analyzed Card */}
                 <div className="bg-slate-800/70 backdrop-blur rounded-2xl p-8 border border-slate-700/50">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-white">Files Analyzed</h3>
@@ -1197,7 +1263,6 @@ const DeepfakeDetectionPlatform = () => {
                   <p className="text-slate-400">This month</p>
                 </div>
                 
-                {/* Threats Detected Card */}
                 <div className="bg-slate-800/70 backdrop-blur rounded-2xl p-8 border border-slate-700/50">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-white">Threats Detected</h3>
@@ -1208,49 +1273,24 @@ const DeepfakeDetectionPlatform = () => {
                 </div>
               </div>
               
-              {/* Recent Activity */}
               <div className="bg-slate-800/70 backdrop-blur rounded-2xl p-8 border border-slate-700/50">
                 <h3 className="text-xl font-semibold text-white mb-6">Recent Activity</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="h-6 w-6 text-green-400" />
-                      <span className="text-white font-medium">Authentic video verified</span>
+                  {[
+                    { icon: CheckCircle, color: 'text-green-400', text: 'Authentic video verified', time: '2 minutes ago' },
+                    { icon: AlertTriangle, color: 'text-red-400', text: 'Deepfake detected in image', time: '15 minutes ago' },
+                    { icon: CheckCircle, color: 'text-green-400', text: 'Authentic portrait analyzed', time: '32 minutes ago' },
+                    { icon: AlertTriangle, color: 'text-orange-400', text: 'Medium-risk content flagged', time: '1 hour ago' },
+                    { icon: CheckCircle, color: 'text-green-400', text: 'Video authenticity confirmed', time: '2 hours ago' }
+                  ].map((activity, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <activity.icon className={`h-6 w-6 ${activity.color}`} />
+                        <span className="text-white font-medium">{activity.text}</span>
+                      </div>
+                      <span className="text-slate-400 text-sm">{activity.time}</span>
                     </div>
-                    <span className="text-slate-400 text-sm">2 minutes ago</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <AlertTriangle className="h-6 w-6 text-red-400" />
-                      <span className="text-white font-medium">Deepfake detected in image</span>
-                    </div>
-                    <span className="text-slate-400 text-sm">15 minutes ago</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="h-6 w-6 text-green-400" />
-                      <span className="text-white font-medium">Authentic portrait analyzed</span>
-                    </div>
-                    <span className="text-slate-400 text-sm">32 minutes ago</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <AlertTriangle className="h-6 w-6 text-orange-400" />
-                      <span className="text-white font-medium">Medium-risk content flagged</span>
-                    </div>
-                    <span className="text-slate-400 text-sm">1 hour ago</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="h-6 w-6 text-green-400" />
-                      <span className="text-white font-medium">Video authenticity confirmed</span>
-                    </div>
-                    <span className="text-slate-400 text-sm">2 hours ago</span>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1258,13 +1298,7 @@ const DeepfakeDetectionPlatform = () => {
         )}
       </div>
 
-      {/* Hidden canvas for analysis */}
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
-        className="hidden"
-      />
+      <canvas ref={canvasRef} width={640} height={480} className="hidden" />
     </div>
   );
 };
