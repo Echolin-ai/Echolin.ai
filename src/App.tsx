@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Camera, Upload, AlertTriangle, CheckCircle, Eye, Zap, Shield, Image, Video, X,
-  Bot, MessageSquare, Brain, Search, FileText, TrendingUp, Award, Cpu, Clock,
-  Menu, Home, Settings, BarChart3, Users, Monitor
+  Bot, MessageSquare, Brain, TrendingUp, Award, Cpu, BarChart3
 } from 'lucide-react';
 
 // ==================== TYPE DEFINITIONS ====================
@@ -338,7 +337,7 @@ const DetectionStatus = ({ detectionResult, confidence }: { detectionResult: Det
 );
 
 // ==================== COMPONENT: ANALYSIS METRICS ====================
-const AnalysisMetrics = ({ analysisMetrics }: { analysisMetrics: AnalysisMetrics }) => (
+const AnalysisMetricsComponent = ({ analysisMetrics }: { analysisMetrics: AnalysisMetrics }) => (
   <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
     <h3 className="text-lg font-semibold text-white mb-4">Analysis Metrics</h3>
     
@@ -381,8 +380,8 @@ const FileUpload = ({
   uploadProgress: number;
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  imageRef: React.RefObject<HTMLImageElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>; // ✅ Fixed: Allow null
+  imageRef: React.RefObject<HTMLImageElement | null>; // ✅ Fixed: Allow null
   faceDetected: boolean;
   detectionResult: DetectionResult | null;
   confidence: number;
@@ -509,7 +508,7 @@ const LiveCamera = ({
   onStart, 
   onStop 
 }: {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>; // ✅ Fixed: Allow null
   isStreaming: boolean;
   faceDetected: boolean;
   isAnalyzing: boolean;
@@ -724,7 +723,7 @@ const DeepfakeDetectionPlatform = () => {
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<string>('');
   
-  // Refs
+  // Refs - All properly typed to allow null
   const videoRef = useRef<HTMLVideoElement>(null);
   const uploadVideoRef = useRef<HTMLVideoElement>(null);
   const uploadImageRef = useRef<HTMLImageElement>(null);
@@ -954,7 +953,7 @@ const DeepfakeDetectionPlatform = () => {
     addMessage('agent', "🔍 **Starting comprehensive deepfake analysis...**\n\nI'll analyze your file using multiple detection methods simultaneously. This ensures maximum accuracy and reliability.");
 
     try {
-      const [_, response] = await Promise.all([
+      const [, response] = await Promise.all([
         progressPromise,
         agent.processInput("analyze uploaded file", file)
       ]);
@@ -1039,18 +1038,52 @@ const DeepfakeDetectionPlatform = () => {
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
                 <div className="lg:col-span-2 space-y-4">
-                  {!uploadedFile ? (
-                    <LiveCamera
-                      videoRef={videoRef}
-                      isStreaming={isStreaming}
-                      faceDetected={faceDetected}
-                      isAnalyzing={isAnalyzing}
-                      detectionResult={detectionResult}
-                      confidence={confidence}
-                      onStart={startCamera}
-                      onStop={stopCamera}
-                    />
-                  ) : (
+                  {!uploadedFile && !isStreaming ? (
+                    // Default state - show both options
+                    <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
+                      <div className="text-center py-12">
+                        <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                          <Eye className="w-12 h-12 text-slate-400" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-white mb-2">Choose Detection Method</h3>
+                        <p className="text-slate-400 mb-8">Start live camera detection or upload a file to analyze</p>
+                        
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                          <button
+                            onClick={startCamera}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+                          >
+                            <Camera className="w-5 h-5" />
+                            <span>Start Live Camera</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*,video/*';
+                              input.onchange = (e) => {
+                                const files = (e.target as HTMLInputElement).files;
+                                if (files && files[0]) {
+                                  const syntheticEvent = {
+                                    target: { files: files },
+                                    currentTarget: { files: files }
+                                  } as React.ChangeEvent<HTMLInputElement>;
+                                  handleFileUpload(syntheticEvent);
+                                }
+                              };
+                              input.click();
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+                          >
+                            <Upload className="w-5 h-5" />
+                            <span>Upload File</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : uploadedFile ? (
+                    // File upload mode
                     <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
                       <FileUpload
                         uploadedFile={uploadedFile}
@@ -1064,12 +1097,24 @@ const DeepfakeDetectionPlatform = () => {
                         confidence={confidence}
                       />
                     </div>
+                  ) : (
+                    // Live camera mode
+                    <LiveCamera
+                      videoRef={videoRef}
+                      isStreaming={isStreaming}
+                      faceDetected={faceDetected}
+                      isAnalyzing={isAnalyzing}
+                      detectionResult={detectionResult}
+                      confidence={confidence}
+                      onStart={startCamera}
+                      onStop={stopCamera}
+                    />
                   )}
                 </div>
 
                 <div className="space-y-4">
                   <DetectionStatus detectionResult={detectionResult} confidence={confidence} />
-                  <AnalysisMetrics analysisMetrics={analysisMetrics} />
+                  <AnalysisMetricsComponent analysisMetrics={analysisMetrics} />
                   
                   <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700">
                     <h3 className="text-lg font-semibold text-white mb-4">How It Works</h3>
