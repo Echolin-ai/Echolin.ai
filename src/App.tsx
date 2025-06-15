@@ -1,8 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Camera, Upload, AlertTriangle, CheckCircle, Eye, Zap, Shield, Image, Video, X,
-  Bot, MessageSquare, Brain, TrendingUp, Award, Cpu, BarChart3
+  Bot, MessageSquare, Brain, TrendingUp, Award, Cpu, BarChart3, History
 } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
+import AuthModal from './components/AuthModal';
+import ChatHistory from './components/ChatHistory';
+import UserProfile from './components/UserProfile';
+import { 
+  onAuthStateChange, 
+  getCurrentUser,
+  createChatSession,
+  saveChatMessage,
+  getChatMessages,
+  getLatestChatSession,
+  ChatSession,
+  DatabaseChatMessage
+} from './services/supabaseService';
 
 // ==================== TYPE DEFINITIONS ====================
 interface DetectionResult {
@@ -245,7 +259,23 @@ const getStatusText = (detectionResult: DetectionResult | null) => {
 };
 
 // ==================== COMPONENT: SIDEBAR ====================
-const Sidebar = ({ activeView, setActiveView }: { activeView: string; setActiveView: (view: string) => void }) => {
+const Sidebar = ({ 
+  activeView, 
+  setActiveView, 
+  user, 
+  onLoginClick,
+  onLogoutSuccess,
+  showChatHistory,
+  setShowChatHistory 
+}: { 
+  activeView: string; 
+  setActiveView: (view: string) => void;
+  user: User | null;
+  onLoginClick: () => void;
+  onLogoutSuccess: () => void;
+  showChatHistory: boolean;
+  setShowChatHistory: (show: boolean) => void;
+}) => {
   const menuItems = [
     { id: 'detector', label: 'Live Detection', icon: Camera },
     { id: 'agent', label: 'AI Assistant', icon: Bot },
@@ -280,10 +310,30 @@ const Sidebar = ({ activeView, setActiveView }: { activeView: string; setActiveV
               <span>{item.label}</span>
             </button>
           ))}
+          
+          {activeView === 'agent' && (
+            <button
+              onClick={() => setShowChatHistory(!showChatHistory)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
+                showChatHistory 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              <History className="h-5 w-5" />
+              <span>Chat History</span>
+            </button>
+          )}
         </nav>
       </div>
       
-      <div className="mt-auto p-6">
+      <div className="mt-auto p-6 space-y-4">
+        <UserProfile
+          user={user}
+          onLoginClick={onLoginClick}
+          onLogoutSuccess={onLogoutSuccess}
+        />
+        
         <div className="bg-slate-700/50 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-slate-300 font-medium">System Status</span>
@@ -692,6 +742,15 @@ const DeepfakeDetectionPlatform = () => {
   // Navigation state
   const [activeView, setActiveView] = useState<string>('analytics');
   
+  // Authentication state
+  const [user, setUser] = useState<User | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showChatHistory, setShowChatHistory] = useState<boolean>(false);
+  
+  // Chat history state
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  
   // Detection state
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
@@ -732,6 +791,157 @@ const DeepfakeDetectionPlatform = () => {
   const animationRef = useRef<number | null>(null);
   const agentFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Authentication and chat history effects
+  useEffect(() => {
+    // Check for existing user on mount
+    const checkUser = async () => {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+    };
+    checkUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = onAuthStateChange((user) => {
+      setUser(user);
+      if (user) {
+        // User logged in, load their latest session or create one
+        loadUserChatSession();
+      } else {
+        // User logged out, reset to default state
+        resetToGuestMode();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Authentication functions
+  const handleLogin = () => {
+    setShowAuthModal(true);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    resetToGuestMode();
+  };
+
+  const resetToGuestMode = () => {
+    setCurrentSessionId(null);
+    setMessages([
+      {
+        id: 1,
+        type: 'agent',
+        content: "Hello! I'm **DeepShield AI**, your advanced deepfake detection specialist. I combine multiple AI techniques to provide forensic-quality analysis of images and videos.\n\n**What I Can Do:**\n🔍 **Analyze** uploaded content with 89%+ accuracy\n📚 **Educate** you about deepfake threats and detection\n🛡️ **Protect** by identifying AI-generated content\n\n**Ready to get started?** Upload a file or ask me anything about deepfake detection!",
+        timestamp: new Date(),
+        isWelcome: true
+      }
+    ]);
+  };
+
+  // Chat history functions
+  const loadUserChatSession = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoadingHistory(true);
+      const latestSession = await getLatestChatSession();
+      
+      if (latestSession) {
+        setCurrentSessionId(latestSession.id);
+        loadChatMessages(latestSession.id);
+      } else {
+        // Create a new session for the user
+        const newSession = await createChatSession('New Chat Session');
+        if (newSession) {
+          setCurrentSessionId(newSession.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user chat session:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const loadChatMessages = async (sessionId: string) => {
+    try {
+      const dbMessages = await getChatMessages(sessionId);
+      const formattedMessages: Message[] = dbMessages.map((msg, index) => ({
+        id: index + 1,
+        type: msg.type,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        metadata: msg.metadata
+      }));
+
+      if (formattedMessages.length === 0) {
+        // If no messages, add welcome message
+        setMessages([
+          {
+            id: 1,
+            type: 'agent',
+            content: "Welcome back! I'm **DeepShield AI**, your advanced deepfake detection specialist. Ready to continue our conversation?",
+            timestamp: new Date(),
+            isWelcome: true
+          }
+        ]);
+      } else {
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error('Error loading chat messages:', error);
+    }
+  };
+
+  const saveMessageToHistory = async (type: 'user' | 'agent', content: string, metadata?: any) => {
+    if (!user || !currentSessionId) return;
+
+    try {
+      await saveChatMessage(currentSessionId, type, content, metadata);
+    } catch (error) {
+      console.error('Error saving message to history:', error);
+    }
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    loadChatMessages(sessionId);
+    setShowChatHistory(false);
+  };
+
+  const handleNewChat = () => {
+    if (user) {
+      // Create new session for logged-in user
+      createNewChatSession();
+    } else {
+      // Reset to guest mode
+      resetToGuestMode();
+    }
+    setShowChatHistory(false);
+  };
+
+  const createNewChatSession = async () => {
+    if (!user) return;
+
+    try {
+      const newSession = await createChatSession('New Chat');
+      if (newSession) {
+        setCurrentSessionId(newSession.id);
+        setMessages([
+          {
+            id: 1,
+            type: 'agent',
+            content: "Hello! I'm **DeepShield AI**, your advanced deepfake detection specialist. How can I help you today?",
+            timestamp: new Date(),
+            isWelcome: true
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error creating new chat session:', error);
+    }
+  };
 
   // Detection logic hooks
   const analyzeFrame = async (mediaElement: HTMLVideoElement | HTMLImageElement) => {
@@ -912,7 +1122,7 @@ const DeepfakeDetectionPlatform = () => {
     scrollToBottom();
   }, [messages]);
 
-  const addMessage = (type: string, content: string, metadata: MessageMetadata | null = null) => {
+  const addMessage = async (type: string, content: string, metadata: MessageMetadata | null = null) => {
     const newMessage: Message = {
       id: Date.now(),
       type,
@@ -921,6 +1131,9 @@ const DeepfakeDetectionPlatform = () => {
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
+    
+    // Save to database if user is logged in
+    await saveMessageToHistory(type as 'user' | 'agent', content, metadata);
   };
 
   const simulateProgressiveAnalysis = useCallback(async () => {
@@ -943,14 +1156,14 @@ const DeepfakeDetectionPlatform = () => {
   const handleAgentFileUpload = async (file: File | null) => {
     if (!file) return;
     
-    addMessage('user', `📁 **Uploaded:** ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    await addMessage('user', `📁 **Uploaded:** ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     setIsProcessing(true);
     setAnalysisProgress(0);
     
     const progressPromise = simulateProgressiveAnalysis();
     
-    addMessage('agent', "🔍 **Starting comprehensive deepfake analysis...**\n\nI'll analyze your file using multiple detection methods simultaneously. This ensures maximum accuracy and reliability.");
+    await addMessage('agent', "🔍 **Starting comprehensive deepfake analysis...**\n\nI'll analyze your file using multiple detection methods simultaneously. This ensures maximum accuracy and reliability.");
 
     try {
       const [, response] = await Promise.all([
@@ -961,15 +1174,15 @@ const DeepfakeDetectionPlatform = () => {
       setCurrentStep('');
       setAnalysisProgress(0);
       
-      addMessage('agent', response.content, response);
+      await addMessage('agent', response.content, response);
       
       if (response.recommendations) {
         const recContent = "**🎯 Recommendations:**\n\n" + response.recommendations.map((rec: string) => rec).join('\n');
-        addMessage('agent', recContent);
+        await addMessage('agent', recContent);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      addMessage('agent', `❌ **Analysis Error:** ${errorMessage}\n\nPlease try uploading a different file or contact support if the issue persists.`);
+      await addMessage('agent', `❌ **Analysis Error:** ${errorMessage}\n\nPlease try uploading a different file or contact support if the issue persists.`);
     } finally {
       setIsProcessing(false);
     }
@@ -978,20 +1191,20 @@ const DeepfakeDetectionPlatform = () => {
   const handleUserMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    addMessage('user', message);
+    await addMessage('user', message);
     setInput('');
     setIsProcessing(true);
 
     try {
       const response = await agent.processInput(message);
-      addMessage('agent', response.content, response);
+      await addMessage('agent', response.content, response);
       
       if (response.suggestions && response.suggestions.length > 0) {
         const suggestionsContent = "**💡 You might also ask:**\n" + response.suggestions.map((s: string) => `• ${s}`).join('\n');
-        addMessage('agent', suggestionsContent);
+        await addMessage('agent', suggestionsContent);
       }
     } catch (error) {
-      addMessage('agent', `❌ **Error:** I encountered an issue processing your request. Please try again.`);
+      await addMessage('agent', `❌ **Error:** I encountered an issue processing your request. Please try again.`);
     } finally {
       setIsProcessing(false);
     }
@@ -1017,7 +1230,15 @@ const DeepfakeDetectionPlatform = () => {
   // ==================== RENDER ====================
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} />
+      <Sidebar 
+        activeView={activeView} 
+        setActiveView={setActiveView}
+        user={user}
+        onLoginClick={handleLogin}
+        onLogoutSuccess={handleLogout}
+        showChatHistory={showChatHistory}
+        setShowChatHistory={setShowChatHistory}
+      />
 
       <div className="flex-1 flex flex-col">
         {activeView === 'detector' && (
@@ -1344,6 +1565,27 @@ const DeepfakeDetectionPlatform = () => {
       </div>
 
       <canvas ref={canvasRef} width={640} height={480} className="hidden" />
+      
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          // User will be automatically loaded via the auth state change listener
+        }}
+      />
+      
+      {/* Chat History Sidebar */}
+      {activeView === 'agent' && (
+        <ChatHistory
+          user={user}
+          currentSessionId={currentSessionId}
+          onSessionSelect={handleSessionSelect}
+          onNewChat={handleNewChat}
+          isVisible={showChatHistory}
+        />
+      )}
     </div>
   );
 };
