@@ -10,27 +10,16 @@ def load_model():
     return image_processor, model
 
 def predict_single_image(image_path, image_processor, model):
-    """Predict if a single image is real or fake"""
     try:
-        # Load and process the image
         image = Image.open(image_path)
         inputs = image_processor(images=image, return_tensors="pt")
-        
-        # Make prediction
         with torch.no_grad():
             outputs = model(**inputs)
             logits = outputs.logits
             pred = torch.argmax(logits, dim=1).item()
-            
-            # Get confidence scores
-            probabilities = torch.nn.functional.softmax(logits, dim=1)
-            confidence = probabilities[0][pred].item()
-            
-        # Convert prediction to label
+            confidence = torch.nn.functional.softmax(logits, dim=1)[0][pred].item()
         label = 'Real' if pred == 1 else 'Fake'
-        
         return label, confidence
-        
     except Exception as e:
         print(f"Error processing {image_path}: {str(e)}")
         return None, None

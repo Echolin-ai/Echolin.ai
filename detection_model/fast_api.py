@@ -9,6 +9,9 @@ import jwt
 from typing import Optional
 import asyncio
 import tempfile
+from deepfake_image import load_model, predict_single_image, predict_batch_images
+
+image_processor, model = load_model()
 
 # Initialize FastAPI app
 app = FastAPI(title="File Analysis API", version="1.0.0")
@@ -69,29 +72,30 @@ def verify_token(token: str) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-# Mock analysis function - Replace with your actual model
 async def run_analysis_model(file_path: str) -> dict:
-    """
-    Replace this with your actual analysis model
-    This is a mock function that simulates model inference
-    """
-    # Simulate processing time
-    await asyncio.sleep(2)
-    
-    # Mock analysis result
-    result = {
-        "detected_objects": ["object1", "object2"],
-        "classification": "category_A",
-        "features": {
-            "feature1": 0.85,
-            "feature2": 0.72
-        }
-    }
-    
-    confidence = 0.89
-    
+    # Download the file from Supabase Storage temporarily
+    download_response = supabase_service.storage.from_(STORAGE_BUCKET).download(file_path)
+    if hasattr(download_response, 'error') and download_response.error:
+        raise Exception(f"Download failed: {download_response.error}")
+
+    # Save to a temporary local file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file_path)[-1]) as tmp_file:
+        tmp_file.write(download_response)
+        tmp_file_path = tmp_file.name
+
+    # Run prediction
+    label, confidence = predict_batch_images(tmp_file_path, image_processor, model)
+
+    # Optionally delete temp file
+    os.remove(tmp_file_path)
+
+    if label is None:
+        raise Exception("Prediction failed")
+
     return {
-        "result": result,
+        "result": {
+            "label": label
+        },
         "confidence": confidence
     }
 
