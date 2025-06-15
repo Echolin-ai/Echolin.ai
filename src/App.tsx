@@ -7,6 +7,7 @@ import { User } from '@supabase/supabase-js';
 import AuthModal from './components/AuthModal';
 import ChatHistory from './components/ChatHistory';
 import UserProfile from './components/UserProfile';
+import SettingsModal from './components/SettingsModal';
 import { 
   onAuthStateChange, 
   getCurrentUser,
@@ -265,6 +266,7 @@ const Sidebar = ({
   user, 
   onLoginClick,
   onLogoutSuccess,
+  onShowSettings,
   showChatHistory,
   setShowChatHistory 
 }: { 
@@ -273,6 +275,7 @@ const Sidebar = ({
   user: User | null;
   onLoginClick: () => void;
   onLogoutSuccess: () => void;
+  onShowSettings: () => void;
   showChatHistory: boolean;
   setShowChatHistory: (show: boolean) => void;
 }) => {
@@ -332,6 +335,7 @@ const Sidebar = ({
           user={user}
           onLoginClick={onLoginClick}
           onLogoutSuccess={onLogoutSuccess}
+          onShowSettings={onShowSettings}
         />
         
         <div className="bg-slate-700/50 rounded-lg p-4">
@@ -746,6 +750,7 @@ const DeepfakeDetectionPlatform = () => {
   const [user, setUser] = useState<User | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [showChatHistory, setShowChatHistory] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
   
   // Chat history state
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -824,6 +829,10 @@ const DeepfakeDetectionPlatform = () => {
   const handleLogout = () => {
     setUser(null);
     resetToGuestMode();
+  };
+
+  const handleShowSettings = () => {
+    setShowSettings(true);
   };
 
   const resetToGuestMode = () => {
@@ -1236,6 +1245,7 @@ const DeepfakeDetectionPlatform = () => {
         user={user}
         onLoginClick={handleLogin}
         onLogoutSuccess={handleLogout}
+        onShowSettings={handleShowSettings}
         showChatHistory={showChatHistory}
         setShowChatHistory={setShowChatHistory}
       />
@@ -1586,6 +1596,13 @@ const DeepfakeDetectionPlatform = () => {
           isVisible={showChatHistory}
         />
       )}
+      
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        user={user}
+      />
     </div>
   );
 };

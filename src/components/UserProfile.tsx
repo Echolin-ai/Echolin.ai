@@ -7,9 +7,10 @@ interface UserProfileProps {
   user: SupabaseUser | null
   onLoginClick: () => void
   onLogoutSuccess: () => void
+  onShowSettings: () => void
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ user, onLoginClick, onLogoutSuccess }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ user, onLoginClick, onLogoutSuccess, onShowSettings }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -88,7 +89,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onLoginClick, onLogoutS
               <button
                 onClick={() => {
                   setDropdownOpen(false)
-                  // TODO: Implement settings modal
+                  onShowSettings()
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
               >
