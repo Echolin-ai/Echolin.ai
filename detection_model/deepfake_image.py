@@ -72,7 +72,7 @@ def save_results(results, output_file='deepfake_results.txt'):
     print(f"Results saved to {output_file}")
 
 image_processor, model = load_model()
-image_folder = "./self_test_images"
+image_folder = "./self_test_images/Fake"
 
 if os.path.exists(image_folder):
     print(f"\nTesting images from folder: {image_folder}")
