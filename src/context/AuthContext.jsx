@@ -1,47 +1,87 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../config/supabase';
 
 // Create the AuthContext
 const AuthContext = createContext({});
 
-// Mock user data for development (replace with real authentication service)
-const mockUser = {
-  id: 1,
-  email: 'user@deepshield.ai',
-  user_metadata: {
-    first_name: 'John',
-    last_name: 'Doe',
-    full_name: 'John Doe'
-  }
-};
-
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(mockUser);
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock sign out function
-  const signOut = async () => {
+  useEffect(() => {
+    // Get initial session
+    const getInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+
+    getInitialSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Sign in function
+  const signIn = async (email, password) => {
     setLoading(true);
     try {
-      // In a real implementation, this would call your auth service
-      console.log('Signing out user...');
-      // For now, we'll keep the user signed in for demo purposes
-      // setUser(null);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+      return { user: data.user };
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Sign in error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Mock sign in function
-  const signIn = async (email, password) => {
+  // Sign up function
+  const signUp = async (email, password, firstName, lastName) => {
     setLoading(true);
     try {
-      // Mock authentication
-      setUser(mockUser);
-      return { user: mockUser };
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            full_name: `${firstName} ${lastName}`
+          }
+        }
+      });
+      
+      if (error) throw error;
+      return { user: data.user };
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Sign up error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sign out function
+  const signOut = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign out error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -52,6 +92,7 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     signIn,
+    signUp,
     signOut
   };
 

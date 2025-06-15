@@ -524,5 +524,69 @@
   
   /* Hidden file input */
   .deepfake-file-input {
-    display: none;
+  display: none;
+}
+
+/* History Button */
+.deepfake-history-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: #60a5fa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.deepfake-history-button:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.deepfake-history-text {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .deepfake-history-text {
+    display: inline;
   }
+}
+
+/* Login Button */
+.deepfake-login-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.deepfake-login-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.deepfake-login-button span {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .deepfake-login-button span {
+    display: inline;
+  }
+}

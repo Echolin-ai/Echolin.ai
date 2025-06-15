@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@mediapipe/face_detection": "^0.4.1646425229",
+    "@supabase/supabase-js": "^2.50.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",

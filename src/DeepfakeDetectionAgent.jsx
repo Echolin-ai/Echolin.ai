@@ -1,29 +1,28 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Upload, MessageSquare, Shield, AlertTriangle, CheckCircle, Brain, TrendingUp, Cpu, Zap, Activity, User, LogOut } from 'lucide-react';
+import { Bot, Upload, MessageSquare, Shield, AlertTriangle, CheckCircle, Brain, TrendingUp, Cpu, Zap, Activity, User, LogOut, History } from 'lucide-react';
 import DeepfakeAgent from './agents/DeepfakeAgent';
 import ApiService from './services/ApiService';
+import ChatHistoryService from './services/ChatHistoryService';
+import Login from './components/Login';
+import SignUp from './components/SignUp';
+import ChatHistory from './components/ChatHistory';
 import { useAuth } from './context/AuthContext';
 import './styles/DeepfakeDetectionAgent.css';
 
 const DeepfakeDetectionAgent = () => {
-  const { user, signOut } = useAuth();
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'agent',
-      content: `Hello **${user?.user_metadata?.first_name || 'there'}**! I'm **DeepShield AI Cloud**, your advanced cloud-based deepfake detection specialist. I use **6 enhanced detection methods** powered by cloud infrastructure to provide forensic-quality analysis with maximum accuracy.\n\n**Cloud-Based Capabilities:**\n🔍 **6-Method Cloud Analysis** - Facial landmarks, edge artifacts, texture, frequency, eye movement, and lighting\n☁️ **Secure Cloud Processing** - AWS S3 integration with advanced ML models\n📊 **Higher Accuracy** - Cloud-powered algorithms with 96.8% accuracy\n🔒 **Secure Storage** - Analysis results stored in Supabase database\n🧠 **Intelligent Responses** - Powered by advanced AI conversation\n\n**Ready for cloud-powered detection?** Upload a file or ask me anything!`,
-      timestamp: new Date(),
-      isWelcome: true
-    }
-  ]);
-  
+  const { user, signOut, loading } = useAuth();
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [agent] = useState(() => new DeepfakeAgent());
   const [apiService] = useState(() => new ApiService());
+  const [chatHistoryService] = useState(() => new ChatHistoryService());
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [showChatHistory, setShowChatHistory] = useState(false);
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -36,7 +35,25 @@ const DeepfakeDetectionAgent = () => {
     scrollToBottom();
   }, [messages]);
 
-  const addMessage = (type, content, metadata = null) => {
+  // Initialize welcome message when component mounts or user changes
+  useEffect(() => {
+    if (!loading) {
+      initializeWelcomeMessage();
+    }
+  }, [user, loading]);
+
+  const initializeWelcomeMessage = () => {
+    const welcomeMessage = {
+      id: 1,
+      type: 'agent',
+      content: `Hello **${user?.user_metadata?.first_name || 'there'}**! I'm **DeepShield AI Cloud**, your advanced cloud-based deepfake detection specialist. I use **6 enhanced detection methods** powered by cloud infrastructure to provide forensic-quality analysis with maximum accuracy.\n\n**Cloud-Based Capabilities:**\n🔍 **6-Method Cloud Analysis** - Facial landmarks, edge artifacts, texture, frequency, eye movement, and lighting\n☁️ **Secure Cloud Processing** - AWS S3 integration with advanced ML models\n📊 **Higher Accuracy** - Cloud-powered algorithms with 96.8% accuracy\n🔒 **Secure Storage** - Analysis results ${user ? 'saved to your account' : 'available after login'}\n🧠 **Intelligent Responses** - Powered by advanced AI conversation\n\n**Ready for cloud-powered detection?** Upload a file or ask me anything!${!user ? '\n\n💡 **Tip:** Sign in to save your analysis history and access advanced features.' : ''}`,
+      timestamp: new Date(),
+      isWelcome: true
+    };
+    setMessages([welcomeMessage]);
+  };
+
+  const addMessage = async (type, content, metadata = null) => {
     const newMessage = {
       id: Date.now(),
       type,
@@ -45,6 +62,20 @@ const DeepfakeDetectionAgent = () => {
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
+
+    // Auto-save message if user is logged in
+    if (user && !newMessage.isWelcome) {
+      try {
+        await chatHistoryService.autoSaveMessage(
+          user.id,
+          type,
+          content,
+          metadata
+        );
+      } catch (error) {
+        console.error('Failed to save message:', error);
+      }
+    }
   };
 
   const updateProgress = useCallback((step, progress) => {
@@ -222,9 +253,43 @@ const DeepfakeDetectionAgent = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      chatHistoryService.clearCurrentSession();
+      setShowUserMenu(false);
     } catch (error) {
       console.error('Logout error:', error);
     }
+  };
+
+  const handleShowAuth = (mode = 'login') => {
+    setAuthMode(mode);
+    setShowAuth(true);
+    setShowUserMenu(false);
+  };
+
+  const handleCloseAuth = () => {
+    setShowAuth(false);
+  };
+
+  const handleSkipAuth = () => {
+    setShowAuth(false);
+  };
+
+  const handleToggleAuthMode = () => {
+    setAuthMode(authMode === 'login' ? 'signup' : 'login');
+  };
+
+  const handleLoadChatSession = (sessionMessages) => {
+    setMessages(sessionMessages);
+    setShowChatHistory(false);
+  };
+
+  const handleShowChatHistory = () => {
+    if (!user) {
+      handleShowAuth('login');
+      return;
+    }
+    setShowChatHistory(true);
+    setShowUserMenu(false);
   };
 
   const getUserDisplayName = () => {
@@ -290,33 +355,62 @@ const DeepfakeDetectionAgent = () => {
             <span className="deepfake-status-text">Cloud Online</span>
           </div>
           
+          {/* Chat History Button */}
+          <button
+            onClick={handleShowChatHistory}
+            className="deepfake-history-button"
+            title={user ? "View chat history" : "Sign in to view chat history"}
+          >
+            <History size={20} />
+            {user && <span className="deepfake-history-text">History</span>}
+          </button>
+          
           {/* User Profile Menu */}
           <div className="deepfake-user-menu-container">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="deepfake-user-button"
-            >
-              <User size={20} />
-              <span className="deepfake-user-name">{getUserDisplayName()}</span>
-            </button>
-            
-            {showUserMenu && (
-              <div className="deepfake-user-menu">
-                <div className="deepfake-user-menu-header">
-                  <div className="deepfake-user-info">
-                    <div className="deepfake-user-display-name">{getUserDisplayName()}</div>
-                    <div className="deepfake-user-email">{user?.email}</div>
-                  </div>
-                </div>
-                <div className="deepfake-user-menu-divider"></div>
+            {user ? (
+              <>
                 <button
-                  onClick={handleLogout}
-                  className="deepfake-user-menu-item"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="deepfake-user-button"
                 >
-                  <LogOut size={16} />
-                  Sign Out
+                  <User size={20} />
+                  <span className="deepfake-user-name">{getUserDisplayName()}</span>
                 </button>
-              </div>
+                
+                {showUserMenu && (
+                  <div className="deepfake-user-menu">
+                    <div className="deepfake-user-menu-header">
+                      <div className="deepfake-user-info">
+                        <div className="deepfake-user-display-name">{getUserDisplayName()}</div>
+                        <div className="deepfake-user-email">{user?.email}</div>
+                      </div>
+                    </div>
+                    <div className="deepfake-user-menu-divider"></div>
+                    <button
+                      onClick={handleShowChatHistory}
+                      className="deepfake-user-menu-item"
+                    >
+                      <History size={16} />
+                      Chat History
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="deepfake-user-menu-item"
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={() => handleShowAuth('login')}
+                className="deepfake-login-button"
+              >
+                <User size={20} />
+                <span>Sign In</span>
+              </button>
             )}
           </div>
         </div>
@@ -468,6 +562,29 @@ const DeepfakeDetectionAgent = () => {
           Send
         </button>
       </div>
+
+      {/* Authentication Modal */}
+      {showAuth && (
+        authMode === 'login' ? (
+          <Login
+            onToggleSignUp={handleToggleAuthMode}
+            onSkip={handleSkipAuth}
+          />
+        ) : (
+          <SignUp
+            onToggleLogin={handleToggleAuthMode}
+            onSkip={handleSkipAuth}
+          />
+        )
+      )}
+
+      {/* Chat History Sidebar */}
+      {showChatHistory && (
+        <ChatHistory
+          onSelectSession={handleLoadChatSession}
+          onClose={() => setShowChatHistory(false)}
+        />
+      )}
     </div>
   );
 };
